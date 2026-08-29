@@ -63,9 +63,33 @@ fn parser_keys() {
 fn buffer_diff_emits() {
     let mut buf = Buffer::empty(Rect::new(0, 0, 5, 1));
     buf.put(0, 0, 'X', Style::new().fg(Color::Red));
-    let out = buf.diff(None);
+    let out = buf.diff(None, ColorLevel::Rgb);
     assert!(out.contains('X'));
     assert!(out.contains("31")); // fg red code
+}
+
+#[test]
+fn layout_splits_auto() {
+    let area = Rect::new(0, 0, 100, 20);
+    let chunks =
+        Layout::vertical([Constraint::Length(5), Constraint::Fill, Constraint::Percentage(20)])
+            .split(area);
+    assert_eq!(chunks.len(), 3);
+    assert_eq!(chunks[0].h, 5);
+    assert_eq!(chunks[2].h, 4); // 20% of 20
+    assert_eq!(chunks[1].h, 11); // fills the rest
+    assert_eq!(chunks[1].y, 5);
+    assert_eq!(chunks[2].bottom(), 20);
+}
+
+#[test]
+fn color_degrade() {
+    assert_eq!(Color::rgb(10, 20, 30).degrade(ColorLevel::Rgb), Color::rgb(10, 20, 30));
+    // basic degradation must not return a truecolor variant
+    assert!(!matches!(
+        Color::rgb(10, 20, 30).degrade(ColorLevel::Basic),
+        Color::Rgb(..)
+    ));
 }
 
 #[test]
