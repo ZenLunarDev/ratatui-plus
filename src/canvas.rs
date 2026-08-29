@@ -37,7 +37,7 @@ impl<'a> Canvas<'a> {
         self
     }
 
-    fn put(&mut self, x: i32, y: i32, ch: char, s: Style) {
+    pub fn put(&mut self, x: i32, y: i32, ch: char, s: Style) {
         if x >= 0 && y >= 0 {
             let (ux, uy) = (x as u16, y as u16);
             if self.clip.contains(ux, uy) {
