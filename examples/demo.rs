@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A feature-packed demo of `ratatui-plus`.
+//! A feature-packed, responsive demo of `ratatui-plus`.
 
 use ratatui_plus::prelude::*;
 
@@ -35,85 +35,106 @@ fn main() -> Rt {
 
     app.run(move |ui, ev| {
         let screen = ui.area;
-
         if let Event::Tick = ev {
             state.ticks += 1;
         }
 
-        // --- Big gradient banner title (one letter per color) ---
-        let title = "RATATUI";
+        // --- Responsive auto-size layout (header / body / footer) ---
+        let chunks = Layout::vertical([
+            Constraint::Length(9), // header
+            Constraint::Fill,      // body (takes the rest)
+            Constraint::Length(3), // footer
+        ])
+        .margin(1)
+        .split(screen);
+        let [header, body, footer] = [chunks[0], chunks[1], chunks[2]];
+
+        // --- Header: gradient banner, auto-centered ---
+        let title = "RATATUI+PLUS";
         let grad = Color::Magenta.gradient(Color::Cyan, title.len());
-        let mut x = screen.x + 2;
+        let total_w = (title.len() as u16) * 6;
+        let start_x = header.centered(total_w, 1).x;
+        let mut x = start_x;
         for (i, ch) in title.chars().enumerate() {
-            Banner::new(&mut ui.buf, x, screen.y + 1).fg(grad[i]).draw(&ch.to_string());
+            Banner::new(&mut ui.buf, x, header.y + 1).fg(grad[i]).draw(&ch.to_string());
             x += 6;
         }
-        Banner::new(&mut ui.buf, screen.x + 2, screen.y + 7)
-            .fg(Color::rgb(255, 215, 0))
-            .draw("+ PLUS");
+        Text::new(&mut ui.buf, Rect::new(header.x, header.y + 7, header.w, 1))
+            .align(Align::Center)
+            .fg(Color::BrightBlack)
+            .draw("std-only  ::  auto-size  ::  auto-color  ::  realtime + static");
 
-        // --- Rounded feature panel ---
-        let panel = screen.padding(2).inset(0, 12);
-        Panel::new(&mut ui.buf, panel)
+        // --- Body split into two auto-sized columns ---
+        let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .spacing(1)
+            .split(body);
+        let left = cols[0];
+        let right = cols[1];
+
+        // Left panel with curved border + canvas shapes.
+        Panel::new(&mut ui.buf, left)
             .round()
             .fg(Color::Green)
-            .title("features")
+            .title("graphics")
             .draw();
-        let inner = panel.inner();
-
-        let mut c = ui.canvas().clip(panel);
-        // a curve + a translucent circle, drawn with the canvas
+        let li = left.inner();
+        let mut c = ui.canvas().clip(left);
         c.circle(
-            inner.x as i32 + 10,
-            inner.y as i32 + 6,
+            li.x as i32 + 10,
+            li.y as i32 + 6,
             5,
             '●',
             Style::new().fg(Color::BrightCyan).alpha(0.6),
         );
         c.curve(
-            Point::new(inner.x, inner.bottom()),
-            Point::new(inner.x + inner.w / 2, inner.bottom().saturating_add(4)),
-            Point::new(inner.x + inner.w, inner.bottom()),
+            Point::new(li.x, li.bottom()),
+            Point::new(li.x + li.w / 2, li.bottom().saturating_add(4)),
+            Point::new(li.x + li.w, li.bottom()),
             '~',
             Style::new().fg(Color::BrightMagenta),
         );
-        // animated bouncing dot
-        let bx = inner.x as i32 + 20 + (state.ticks % 20) as i32;
-        let by = inner.y as i32 + 2 + ((state.ticks / 4) % 6) as i32;
+        let bx = li.x as i32 + 20 + (state.ticks % 18) as i32;
+        let by = li.y as i32 + 2 + ((state.ticks / 4) % 6) as i32;
         c.put(bx, by, '◉', Style::new().fg(Color::BrightYellow).blink(true));
 
-        Text::new(&mut ui.buf, Rect::new(inner.x + 30, inner.y + 2, 40, 8))
-            .fg(Color::White)
-            .draw(
-                "std-only  :: no external crates\n\
-                 colors   :: truecolor + 256 + 4bit\n\
-                 borders  :: round curve thick ascii\n\
-                 widgets  :: button input text ascii\n\
-                 mode     :: realtime + static",
-            );
-
-        // --- Interactive widgets (repositioned, state preserved) ---
-        let iy = screen.bottom().saturating_sub(4);
-        state.name.set_rect(Rect::new(screen.x + 2, iy, 24, 1));
+        // Right panel with interactive widgets.
+        Panel::new(&mut ui.buf, right)
+            .thick()
+            .fg(Color::Yellow)
+            .title("input")
+            .draw();
+        let ri = right.inner();
+        state.name.set_rect(Rect::new(ri.x, ri.y + 1, ri.w.min(24), 1));
         state.name.handle(ev, ui);
         state.name.draw(ui);
-
-        state.go.set_rect(Rect::new(screen.x + 30, iy, 14, 3));
+        Text::new(&mut ui.buf, Rect::new(ri.x, ri.y, ri.w, 1))
+            .fg(Color::BrightBlack)
+            .draw("your name:");
+        state.go.set_rect(Rect::new(ri.x, ri.y + 4, 14, 3));
         state.go.handle(ev, ui);
         state.go.draw(ui);
-
         if state.go.clicked() {
             state.clicks += 1;
         }
+        let art = "  /\\_/\\\n ( o.o )\n  > ^ <";
+        Ascii::new(&mut ui.buf, ri.x, ri.y + 9)
+            .fg(Color::rgb(255, 105, 180))
+            .draw(art);
 
-        // --- Footer with transparency ---
-        let foot = Rect::new(screen.x + 2, screen.bottom().saturating_sub(2), screen.w - 4, 1);
+        // --- Footer: transparency + detected color level ---
+        let lvl = match ui.color_level {
+            ColorLevel::Rgb => "truecolor",
+            ColorLevel::Ansi256 => "256-color",
+            ColorLevel::Basic => "16-color",
+            ColorLevel::None => "no-color",
+        };
         let msg = format!(
-            "clicks: {}  name: '{}'   [Tab] focus  [Esc] quit",
+            "clicks: {}  name: '{}'  color: {}  [Tab] focus  [Esc] quit",
             state.clicks,
-            state.name.value()
+            state.name.value(),
+            lvl
         );
-        Text::new(&mut ui.buf, foot)
+        Text::new(&mut ui.buf, footer)
             .style(Style::new().fg(Color::Black).bg(Color::Yellow).alpha(0.85))
             .draw(&msg);
 

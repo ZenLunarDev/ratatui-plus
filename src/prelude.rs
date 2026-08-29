@@ -20,11 +20,11 @@ pub use crate::border::{
 };
 pub use crate::buffer::{Buffer, Cell};
 pub use crate::canvas::Canvas;
-pub use crate::color::{palette, Color};
+pub use crate::color::{palette, Color, ColorLevel};
 pub use crate::error::Rt;
 pub use crate::event::{Event, Key, KeyCode, Mouse, MouseButton, MouseKind, Parser};
 pub use crate::font;
 pub use crate::frame::Frame;
-pub use crate::layout::{Align, Point, Rect};
+pub use crate::layout::{Align, Direction, Point, Rect, Constraint, Layout};
 pub use crate::style::Style;
 pub use crate::widgets::{Ascii, Banner, Btn, Input, Panel, Text};
