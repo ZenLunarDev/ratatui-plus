@@ -44,6 +44,7 @@ pub struct App {
     last_focus_count: usize,
     tick: Duration,
     running: bool,
+    tab_cycle: bool,
 }
 
 impl App {
@@ -101,12 +102,20 @@ impl App {
             last_focus_count: 0,
             tick: Duration::from_millis(33),
             running: true,
+            tab_cycle: true,
         })
     }
 
     /// Set the redraw/event tick rate.
     pub fn tick(mut self, d: Duration) -> Self {
         self.tick = d;
+        self
+    }
+
+    /// Control whether `Tab` cycles focus between widgets (default true).
+    /// Disable when you manage navigation yourself (e.g. a window manager).
+    pub fn tab_cycle(mut self, v: bool) -> Self {
+        self.tab_cycle = v;
         self
     }
 
@@ -163,15 +172,18 @@ impl App {
             }
 
             // Tab cycles focus, then we redraw to reflect it.
-            if let Event::Key(k) = &ev {
-                if k.is_tab() {
-                    let n = self.last_focus_count.max(1);
-                    self.focus = (self.focus + 1) % n;
-                    let flow = self.draw_with(&Event::Tick, &mut cb)?;
-                    if flow == Flow::Quit || !self.running {
-                        break;
+            // Disabled when the caller manages navigation (e.g. a desktop).
+            if self.tab_cycle {
+                if let Event::Key(k) = &ev {
+                    if k.is_tab() {
+                        let n = self.last_focus_count.max(1);
+                        self.focus = (self.focus + 1) % n;
+                        let flow = self.draw_with(&Event::Tick, &mut cb)?;
+                        if flow == Flow::Quit || !self.running {
+                            break;
+                        }
+                        continue;
                     }
-                    continue;
                 }
             }
 
