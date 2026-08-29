@@ -138,11 +138,12 @@ impl Buffer {
         }
     }
 
-    /// Produce an ANSI string that updates `prev` into `self`.
+    /// Produce an ANSI string that updates `prev` into `self`, auto-degraded
+    /// to the terminal's [`ColorLevel`].
     ///
     /// When `prev` is `None`, the whole buffer is emitted. This diff keeps
     /// real-time rendering smooth (no full-screen clears / flicker).
-    pub fn diff(&self, prev: Option<&Buffer>) -> String {
+    pub fn diff(&self, prev: Option<&Buffer>, level: crate::color::ColorLevel) -> String {
         let mut out = String::new();
         let w = self.area.w;
         let h = self.area.h;
@@ -153,7 +154,7 @@ impl Buffer {
                         let i = y as usize * w as usize + x as usize;
                         let cell = &self.cells[i];
                         out.push_str(&format!("\x1b[{};{}H", y + 1, x + 1));
-                        out.push_str(&cell.style.open());
+                        out.push_str(&cell.style.open(level));
                         out.push(cell.ch);
                         out.push_str(Style::RESET);
                     }
@@ -172,7 +173,7 @@ impl Buffer {
                             || cell != &prev.cells[y as usize * pw as usize + x as usize];
                         if changed {
                             out.push_str(&format!("\x1b[{};{}H", y + 1, x + 1));
-                            out.push_str(&cell.style.open());
+                            out.push_str(&cell.style.open(level));
                             out.push(cell.ch);
                             out.push_str(Style::RESET);
                         }

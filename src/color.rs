@@ -48,7 +48,47 @@ pub enum Color {
     Rgb(u8, u8, u8),
 }
 
+/// How many colors the terminal can display. Used to auto-degrade
+/// [`Color::Rgb`] so output still looks right on older terminals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorLevel {
+    /// No color (e.g. `NO_COLOR` set).
+    None,
+    /// 4-bit / 16 colors.
+    Basic,
+    /// 8-bit / 256 colors.
+    Ansi256,
+    /// 24-bit true color.
+    Rgb,
+}
+
+impl ColorLevel {
+    pub fn supports_truecolor(self) -> bool {
+        self == ColorLevel::Rgb
+    }
+    pub fn supports_256(self) -> bool {
+        matches!(self, ColorLevel::Ansi256 | ColorLevel::Rgb)
+    }
+}
+
 impl Color {
+    /// Downgrade this color to what `level` can display (auto-degradation).
+    pub fn degrade(self, level: ColorLevel) -> Color {
+        match level {
+            ColorLevel::Rgb => self,
+            ColorLevel::None => Color::Reset,
+            ColorLevel::Ansi256 => match self {
+                Color::Rgb(r, g, b) => Color::Ansi(nearest_ansi(r, g, b)),
+                Color::Ansi(c) => Color::Ansi(c),
+                other => other,
+            },
+            ColorLevel::Basic => match self {
+                Color::Rgb(r, g, b) => nearest_basic(r, g, b),
+                Color::Ansi(c) => ansi_to_basic(c),
+                other => other,
+            },
+        }
+    }
     /// Build a true-color from components.
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Color::Rgb(r, g, b)
@@ -242,6 +282,63 @@ const ANSI_256: [(u8, u8, u8); 256] = {
     }
     t
 };
+
+/// The 16 standard colors as RGB triples (for nearest-color matching).
+const BASIC_16: [(Color, (u8, u8, u8)); 16] = [
+    (Color::Black, (0, 0, 0)),
+    (Color::Red, (204, 0, 0)),
+    (Color::Green, (0, 175, 0)),
+    (Color::Yellow, (204, 204, 0)),
+    (Color::Blue, (0, 0, 204)),
+    (Color::Magenta, (204, 0, 204)),
+    (Color::Cyan, (0, 175, 175)),
+    (Color::White, (187, 187, 187)),
+    (Color::BrightBlack, (85, 85, 85)),
+    (Color::BrightRed, (255, 85, 85)),
+    (Color::BrightGreen, (0, 255, 0)),
+    (Color::BrightYellow, (255, 255, 85)),
+    (Color::BrightBlue, (85, 85, 255)),
+    (Color::BrightMagenta, (255, 85, 255)),
+    (Color::BrightCyan, (85, 255, 255)),
+    (Color::BrightWhite, (255, 255, 255)),
+];
+
+fn dist2(a: (u8, u8, u8), b: (u8, u8, u8)) -> u32 {
+    let dr = a.0 as i32 - b.0 as i32;
+    let dg = a.1 as i32 - b.1 as i32;
+    let db = a.2 as i32 - b.2 as i32;
+    (dr * dr + dg * dg + db * db) as u32
+}
+
+fn nearest_ansi(r: u8, g: u8, b: u8) -> u8 {
+    let mut best = 0u8;
+    let mut best_d = u32::MAX;
+    for (i, c) in ANSI_256.iter().enumerate() {
+        let d = dist2((r, g, b), *c);
+        if d < best_d {
+            best_d = d;
+            best = i as u8;
+        }
+    }
+    best
+}
+
+fn nearest_basic(r: u8, g: u8, b: u8) -> Color {
+    let mut best = Color::White;
+    let mut best_d = u32::MAX;
+    for (col, c) in BASIC_16.iter() {
+        let d = dist2((r, g, b), *c);
+        if d < best_d {
+            best_d = d;
+            best = *col;
+        }
+    }
+    best
+}
+
+fn ansi_to_basic(c: u8) -> Color {
+    BASIC_16[(c as usize).min(15)].0
+}
 
 /// Handy re-exports of the basic palette so callers can do `use ratatui_plus::color::*;`.
 pub mod palette {

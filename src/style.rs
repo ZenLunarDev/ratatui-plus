@@ -19,7 +19,7 @@
 //! escape supported by Kitty-style terminals and otherwise degrades to
 //! the closest solid color.
 
-use crate::color::Color;
+use crate::color::{Color, ColorLevel};
 use std::fmt::Write;
 
 /// A cell's visual style.
@@ -161,8 +161,9 @@ impl Style {
         self
     }
 
-    /// Build the opening SGR sequence for this style.
-    pub(crate) fn open(&self) -> String {
+    /// Build the opening SGR sequence for this style, auto-degraded to
+    /// the terminal's [`ColorLevel`].
+    pub(crate) fn open(&self, level: ColorLevel) -> String {
         let mut p: Vec<String> = Vec::new();
         if self.bold {
             p.push("1".into());
@@ -195,32 +196,35 @@ impl Style {
             p.push("9".into());
         }
 
+        let fg = self.fg.degrade(level);
+        let bg = self.bg.degrade(level);
+
         let mut s = String::new();
         // foreground
         if self.alpha < 1.0 {
-            if let Color::Rgb(r, g, b) = self.fg {
+            if let Color::Rgb(r, g, b) = fg {
                 let a = (self.alpha * 255.0).round() as u8;
                 let _ = write!(s, "38:2::{r}:{g}:{b}:{a};");
             } else {
-                self.fg.fg_code(&mut s);
+                fg.fg_code(&mut s);
                 s.push(';');
             }
-        } else if self.fg != Color::Reset {
-            self.fg.fg_code(&mut s);
+        } else if fg != Color::Reset {
+            fg.fg_code(&mut s);
             s.push(';');
         }
         // background
-        if self.bg != Color::Reset {
+        if bg != Color::Reset {
             if self.alpha < 1.0 {
-                if let Color::Rgb(r, g, b) = self.bg {
+                if let Color::Rgb(r, g, b) = bg {
                     let a = (self.alpha * 255.0).round() as u8;
                     let _ = write!(s, "48:2::{r}:{g}:{b}:{a};");
                 } else {
-                    self.bg.bg_code(&mut s);
+                    bg.bg_code(&mut s);
                     s.push(';');
                 }
             } else {
-                self.bg.bg_code(&mut s);
+                bg.bg_code(&mut s);
                 s.push(';');
             }
         }
