@@ -17,11 +17,12 @@
 //! alternate screen, mouse + focus reporting and size detection on
 //! Windows and Unix.
 
-use crate::error::{err, Rt};
+use crate::error::Rt;
 use crate::layout::Rect;
 use std::io::Write;
 
 #[cfg(windows)]
+#[allow(dead_code, non_snake_case)]
 mod sys {
     pub type HANDLE = *mut std::ffi::c_void;
     pub type DWORD = u32;
@@ -72,6 +73,7 @@ mod sys {
 }
 
 #[cfg(unix)]
+#[allow(dead_code, non_snake_case)]
 mod sys {
     use std::os::unix::io::RawFd;
 
@@ -201,6 +203,10 @@ impl Term {
     }
 
     /// Enter raw mode (no echo / line buffering / signal translation).
+    ///
+    /// If the terminal cannot be put into raw mode (e.g. input is piped
+    /// rather than a real console) this is treated as a no-op so the
+    /// program can still render — only interactive key handling is limited.
     pub fn enable_raw(&mut self) -> Rt<()> {
         if self.raw_enabled {
             return Ok(());
@@ -210,43 +216,39 @@ impl Term {
             unsafe {
                 // we already saved the original mode in `new`
                 let mode = sys::ENABLE_VIRTUAL_TERMINAL_INPUT; // raw key bytes
-                if sys::SetConsoleMode(self.in_handle, mode) == 0 {
-                    return Err(err("failed to set raw console input mode"));
-                }
+                let _ = sys::SetConsoleMode(self.in_handle, mode);
             }
         }
         #[cfg(unix)]
         {
             unsafe {
                 let mut t = std::mem::MaybeUninit::<sys::Termios>::uninit();
-                if sys::tcgetattr(self.tty_fd, t.as_mut_ptr()) != 0 {
-                    return Err(err("tcgetattr failed"));
-                }
-                let mut t = t.assume_init();
-                self.saved_termios = Some(t);
-                let raw = sys::Termios {
-                    iflag: t.iflag
-                        & !(sys::IGNBRK
-                            | sys::BRKINT
-                            | sys::PARMRK
-                            | sys::ISTRIP
-                            | sys::INLCR
-                            | sys::IGNCR
-                            | sys::ICRNL
-                            | sys::IXON),
-                    oflag: t.oflag & !sys::OPOST,
-                    cflag: t.cflag & !sys::CSIZE | sys::CS8,
-                    lflag: t.lflag
-                        & !(sys::ECHO | sys::ECHONL | sys::ICANON | sys::ISIG | sys::IEXTEN),
-                    line: t.line,
-                    cc: t.cc,
-                    ispeed: t.ispeed,
-                    ospeed: t.ospeed,
-                };
-                raw.cc[sys::VMIN] = 1;
-                raw.cc[sys::VTIME] = 0;
-                if sys::tcsetattr(self.tty_fd, 0, &raw) != 0 {
-                    return Err(err("tcsetattr failed"));
+                if sys::tcgetattr(self.tty_fd, t.as_mut_ptr()) == 0 {
+                    let mut t = t.assume_init();
+                    self.saved_termios = Some(t);
+                    let raw = sys::Termios {
+                        iflag: t.iflag
+                            & !(sys::IGNBRK
+                                | sys::BRKINT
+                                | sys::PARMRK
+                                | sys::ISTRIP
+                                | sys::INLCR
+                                | sys::IGNCR
+                                | sys::ICRNL
+                                | sys::IXON),
+                        oflag: t.oflag & !sys::OPOST,
+                        cflag: t.cflag & !sys::CSIZE | sys::CS8,
+                        lflag: t.lflag
+                            & !(sys::ECHO | sys::ECHONL | sys::ICANON | sys::ISIG
+                                | sys::IEXTEN),
+                        line: t.line,
+                        cc: t.cc,
+                        ispeed: t.ispeed,
+                        ospeed: t.ospeed,
+                    };
+                    raw.cc[sys::VMIN] = 1;
+                    raw.cc[sys::VTIME] = 0;
+                    let _ = sys::tcsetattr(self.tty_fd, 0, &raw);
                 }
             }
         }
@@ -336,26 +338,10 @@ impl Term {
 
     /// Write a raw string to the terminal.
     pub fn write_str(&mut self, s: &str) -> Rt<()> {
-        #[cfg(windows)]
-        {
-            use std::os::windows::io::AsHandle;
-            let mut out = std::io::stdout().lock();
-            out.write_all(s.as_bytes())?;
-            out.flush()?;
-        }
-        #[cfg(unix)]
-        {
-            let mut out = std::io::stdout().lock();
-            out.write_all(s.as_bytes())?;
-            out.flush()?;
-        }
+        let mut out = std::io::stdout().lock();
+        out.write_all(s.as_bytes())?;
+        out.flush()?;
         Ok(())
-    }
-
-    /// Read some bytes from the input (used by the event thread).
-    #[cfg(unix)]
-    pub(crate) fn read_input(&self, buf: &mut [u8]) -> isize {
-        unsafe { sys::read(self.tty_fd, buf.as_mut_ptr(), buf.len()) }
     }
 
     /// Flush pending output.
@@ -368,6 +354,12 @@ impl Term {
     #[cfg(unix)]
     pub(crate) fn input_fd(&self) -> i32 {
         self.tty_fd
+    }
+
+    /// Read raw bytes from the tty (unix only). Used by the event thread.
+    #[cfg(unix)]
+    pub(crate) fn read_tty(fd: i32, buf: &mut [u8]) -> isize {
+        unsafe { sys::read(fd, buf.as_mut_ptr(), buf.len()) }
     }
 
     /// Clear the visible screen.
@@ -394,24 +386,28 @@ impl Drop for Term {
 }
 
 #[cfg(windows)]
-unsafe fn query_size_win(handle: sys::HANDLE) -> (u16, u16) {
-    let mut info: sys::CONSOLE_SCREEN_BUFFER_INFO = std::mem::zeroed();
-    if sys::GetConsoleScreenBufferInfo(handle, &mut info) != 0 {
-        let w = (info.srWindow.right - info.srWindow.left + 1).max(1) as u16;
-        let h = (info.srWindow.bottom - info.srWindow.top + 1).max(1) as u16;
-        (w, h)
-    } else {
-        (80, 24)
+fn query_size_win(handle: sys::HANDLE) -> (u16, u16) {
+    unsafe {
+        let mut info: sys::CONSOLE_SCREEN_BUFFER_INFO = std::mem::zeroed();
+        if sys::GetConsoleScreenBufferInfo(handle, &mut info) != 0 {
+            let w = (info.srWindow.right - info.srWindow.left + 1).max(1) as u16;
+            let h = (info.srWindow.bottom - info.srWindow.top + 1).max(1) as u16;
+            (w, h)
+        } else {
+            (80, 24)
+        }
     }
 }
 
 #[cfg(unix)]
-unsafe fn query_size_unix(fd: i32) -> (u16, u16) {
-    let mut ws: sys::Winsize = std::mem::zeroed();
-    if fd >= 0 && sys::ioctl(fd, sys::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 {
-        (ws.ws_col as u16, ws.ws_row as u16)
-    } else {
-        (80, 24)
+fn query_size_unix(fd: i32) -> (u16, u16) {
+    unsafe {
+        let mut ws: sys::Winsize = std::mem::zeroed();
+        if fd >= 0 && sys::ioctl(fd, sys::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0 {
+            (ws.ws_col as u16, ws.ws_row as u16)
+        } else {
+            (80, 24)
+        }
     }
 }
 
