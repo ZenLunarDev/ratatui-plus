@@ -15,7 +15,7 @@
 //! The cell grid that widgets draw into, and a minimal diff renderer.
 
 use crate::layout::Rect;
-use crate::style::{Style, Style::RESET};
+use crate::style::Style;
 use std::cmp::min;
 
 /// A single terminal cell.
@@ -71,7 +71,7 @@ impl Buffer {
         *self = nb;
     }
 
-    /// Reset every cell to blank.
+    /// Style::RESET every cell to blank.
     pub fn clear(&mut self) {
         for c in self.cells.iter_mut() {
             *c = Cell::blank();
@@ -155,7 +155,7 @@ impl Buffer {
                         out.push_str(&format!("\x1b[{};{}H", y + 1, x + 1));
                         out.push_str(&cell.style.open());
                         out.push(cell.ch);
-                        out.push_str(RESET);
+                        out.push_str(Style::RESET);
                     }
                 }
             }
@@ -174,7 +174,7 @@ impl Buffer {
                             out.push_str(&format!("\x1b[{};{}H", y + 1, x + 1));
                             out.push_str(&cell.style.open());
                             out.push(cell.ch);
-                            out.push_str(RESET);
+                            out.push_str(Style::RESET);
                         }
                         x += 1;
                     }
