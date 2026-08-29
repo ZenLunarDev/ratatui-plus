@@ -315,6 +315,38 @@ impl Term {
         (self.width, self.height)
     }
 
+    /// Auto-detect how many colors the terminal supports.
+    ///
+    /// Checks `NO_COLOR`, `COLORTERM`, `TERM` and common terminal programs
+    /// so true-color output is only emitted when the terminal can show it.
+    pub fn color_level(&self) -> crate::color::ColorLevel {
+        use crate::color::ColorLevel;
+        use std::env;
+        if env::var_os("NO_COLOR").is_some() {
+            return ColorLevel::None;
+        }
+        if let Ok(ct) = env::var("COLORTERM") {
+            if ct.contains("truecolor") || ct.contains("24bit") {
+                return ColorLevel::Rgb;
+            }
+        }
+        if let Ok(term) = env::var("TERM") {
+            if term.contains("256color") {
+                return ColorLevel::Ansi256;
+            }
+            if term.contains("color") || term.contains("xterm") {
+                return ColorLevel::Basic;
+            }
+        }
+        if let Ok(prog) = env::var("TERM_PROGRAM") {
+            match prog.as_str() {
+                "iTerm.app" | "WezTerm" | "ghostty" | "vscode" => return ColorLevel::Rgb,
+                _ => {}
+            }
+        }
+        ColorLevel::Basic
+    }
+
     /// Re-query the terminal size.
     pub fn refresh_size(&mut self) {
         #[cfg(windows)]
