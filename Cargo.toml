@@ -1,0 +1,16 @@
+[package]
+name = "ratatui-plus"
+version = "0.1.0"
+edition = "2021"
+authors = ["ZenLunarDev"]
+description = "ratatui-plus — a feature-rich, std-only Terminal UI toolkit. Borders, curves, deep colors, transparency, widgets (button/input/text/ascii), real-time + static rendering with a short, easy-to-remember API."
+license = "Apache-2.0"
+keywords = ["tui", "terminal", "ratatui", "ui", "cli"]
+categories = ["command-line-interface", "gui"]
+repository = "https://github.com/ZenLunarDev/ratatui-plus"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = true
