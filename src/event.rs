@@ -123,7 +123,7 @@ pub enum MouseKind {
 }
 
 /// Anything that can happen while the app is running.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Key(Key),
     Mouse(Mouse),
