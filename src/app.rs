@@ -128,14 +128,15 @@ impl App {
         self.buf.clear();
         let area = self.buf.area;
         let focus = self.focus;
-        let mut frame = Frame::new(&mut self.buf, area, focus);
+        let level = self.term.color_level();
+        let mut frame = Frame::new(&mut self.buf, area, focus, level);
         let flow = cb(&mut frame, ev);
         if let Some(r) = frame.take_request() {
             self.focus = r;
         }
         self.last_focus_count = frame.focus_count();
 
-        let out = self.buf.diff(Some(&self.prev));
+        let out = self.buf.diff(Some(&self.prev), level);
         self.term.write_str(&out)?;
         self.prev = self.buf.clone();
         Ok(flow)

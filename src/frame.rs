@@ -16,6 +16,7 @@
 
 use crate::buffer::Buffer;
 use crate::canvas::Canvas;
+use crate::color::ColorLevel;
 use crate::layout::Rect;
 
 /// A mutable view into the screen for one frame.
@@ -23,6 +24,8 @@ pub struct Frame<'a> {
     pub buf: &'a mut Buffer,
     /// The full screen area this frame may draw into.
     pub area: Rect,
+    /// The detected color capability of the terminal (auto-degrade target).
+    pub color_level: ColorLevel,
     /// Currently focused component index (keyboard navigation).
     focus: usize,
     /// Running counter of focusable components registered this frame.
@@ -32,10 +35,11 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub(crate) fn new(buf: &'a mut Buffer, area: Rect, focus: usize) -> Self {
+    pub(crate) fn new(buf: &'a mut Buffer, area: Rect, focus: usize, color_level: ColorLevel) -> Self {
         Frame {
             buf,
             area,
+            color_level,
             focus,
             count: 0,
             requested: None,
