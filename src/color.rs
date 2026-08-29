@@ -115,7 +115,7 @@ impl Color {
             Color::BrightMagenta => (255, 85, 255),
             Color::BrightCyan => (85, 255, 255),
             Color::BrightWhite => (255, 255, 255),
-            Color::Ansi(c) => ANSI_256[c as usize.min(255)],
+            Color::Ansi(c) => ANSI_256[(c as usize).min(255)],
             Color::Rgb(r, g, b) => (r, g, b),
         }
     }
