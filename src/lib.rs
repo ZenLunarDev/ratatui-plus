@@ -63,4 +63,6 @@ pub mod style;
 pub mod term;
 pub mod widgets;
 pub mod prelude;
+pub mod desktop;
+pub mod apps;
 

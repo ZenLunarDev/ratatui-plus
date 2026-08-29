@@ -23,6 +23,7 @@ pub use crate::canvas::Canvas;
 pub use crate::color::{palette, Color, ColorLevel};
 pub use crate::error::Rt;
 pub use crate::event::{Event, Key, KeyCode, Mouse, MouseButton, MouseKind, Parser};
+pub use crate::desktop::{Desktop, DesktopApp};
 pub use crate::font;
 pub use crate::frame::Frame;
 pub use crate::layout::{Align, Direction, Point, Rect, Constraint, Layout};
